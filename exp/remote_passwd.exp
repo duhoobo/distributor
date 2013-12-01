@@ -1,0 +1,51 @@
+#!/usr/bin/env expect
+source [file dirname [info script]]/login.exp
+
+set timeout 30
+log_user -info 1
+
+if {[llength $argv] < 5} {
+    puts "$::argv0 host port user pass new_pass"
+    exit 1
+}
+
+set host [lindex $argv 0]
+set port [lindex $argv 1]
+set user [lindex $argv 2]
+set pass [lindex $argv 3]
+set new_pass [lindex $argv 4]
+ 
+
+set proc_id [spawn ssh $user@$host --port=$port]
+
+set fb [universal_login $host $pass]
+if {! $fb} { exit 1 }
+
+send "passwd\r"
+
+set retval 0
+expect {
+    -nocase "(current) unix password: " {
+        send "$pass\r"
+        exp_continue
+    } -nocase "new unix password" {
+        send "$new_pass\r"
+        exp_continue
+    } -nocase "updated successfully" {
+        send "exit\r"
+    } -nocase "password unchanged" {
+        send "exit\r"
+    } -nocase "do not match" {
+        send "exit\r"
+        incr retval
+    } eof {
+        puts "$host: closed by server"
+        incr retval
+    } timeout {
+        puts "$host: passwd timeout"  
+        incr retval
+    }
+}
+
+exit $retval
+

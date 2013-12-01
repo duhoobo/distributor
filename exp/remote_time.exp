@@ -1,0 +1,63 @@
+#!/usr/bin/env expect
+set host [lindex $argv 0]
+set port [lindex $argv 1]
+set user [lindex $argv 2]
+set pass [lindex $argv 3]
+
+set saved_key 0
+set timeout 1
+
+log_user 0
+
+puts "$host $port $user $pass\n"
+
+spawn ssh $user@$host --port=$port
+expect {
+    "assword:" { 
+        send "$pass\r"; 
+    } "yes/no)?" { 
+        set saved_key 1 
+            send "yes\r" 
+    } -re "(FATAL)|(No route to host)|(Connection Refused)" { 
+        puts "$host: $expect_out(0,string)\n"
+            exit 1 
+    } -re "(Host key verification failed)|(Illegal host key)(Connection Timed Out)" { 
+        puts "$host: $expect_out(0,string)\n"
+            exit 1 
+    } -re "(# $)|(\$ $)|(> $)" {
+        puts "$host: password not needed"
+            send "\r"
+    } timeout { 
+        puts "$host: login timeout\n" 
+            exit 1
+    }
+}
+
+if {$saved_key == 1} {
+    expect {
+        "assword:" { 
+            send "$pass\r"
+        } timeout { 
+            puts "$host: key_saving timeout\n" 
+                exit 1
+        }
+    }
+}
+
+expect {
+    "assword:" {
+        puts "$host: password mismatch"
+            exit 1
+    } -re "(# $)|(\$ $)|(> $)" {
+        send "echo r; date; echo r\r"
+            exp_continue
+    } -re "r[^;](.*)r" {
+        puts "$expect_out(1,string)\n"
+            send "exit\r"
+    } eof {
+        exit 0 
+    } timeout {
+        puts "$host: prompt timeout\n"
+            exit 1 
+    }
+}

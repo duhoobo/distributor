@@ -1,0 +1,28 @@
+##
+proc universal_login {host pass proc_id} {
+    global expect_out
+    expect {
+        assword: { 
+            send "$pass\r"; 
+            exp_continue
+        } yes/no)\? { 
+            send "yes\r" 
+            exp_continue
+        } -nocase -re "fatal|no route to host|connection refused" { 
+            puts "network ERROR"
+            return false
+        } -nocase -re "key verification failed|illegal host key" { 
+            puts "failed to VERIFY"
+            return false
+        } -re "# $|\\$ $|> $" {
+            return true
+        } eof {
+            puts "server CLOSED"
+            return [expr [lindex [wait proc_id] 3]? false : true]
+        } timeout { 
+            puts "operation TIMEOUT"
+            return false
+        }
+    }
+}
+

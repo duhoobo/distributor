@@ -1,0 +1,43 @@
+#!/usr/bin/expect
+source [file dirname [info script]]/login.exp
+
+set timeout 30
+log_user -info 1
+exp_internal 0
+
+if {[llength $argv] < 5} {
+    puts "$::argv0 host port user pass cmd"
+    exit 1
+}
+
+set host [lindex $argv 0]
+set port [lindex $argv 1]
+set user [lindex $argv 2]
+set pass [lindex $argv 3]
+set cmd [regsub -all ";" [lindex $argv 4] "\\&\\&"]
+ 
+set proc_id [spawn ssh $user@$host -p $port]
+if {! [universal_login $host $pass $proc_id]} { exit 1 }
+set saved_spawn_id $spawn_id
+
+puts "$cmd; echo x$?x"
+send "$cmd; echo x$?x\r"
+
+set retval 0
+expect {
+    -re "x0x" {
+        #puts "$expect_out(buffer)"
+    } -re "x\[0-9\]*x" {
+        puts "$host: exec '$cmd' failure"
+        close -i $saved_spawn_id
+        incr retval
+    } eof {
+        puts "$host: closed us"
+        incr retval
+    } timeout {
+        puts "$host: exec '$cmd' timeout"
+        incr retval
+    }
+}
+
+exit $retval

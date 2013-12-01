@@ -1,0 +1,54 @@
+#!/usr/bin/expect
+source [file dirname [info script]]/login.exp
+
+set timeout 60
+#log_user -info 1
+exp_internal 0
+
+if {[llength $argv] < 5} {
+    puts "$::argv0 host port user pass rules"
+    exit 1
+}
+
+# prepare the arguments
+set host [lindex $argv 0]
+set port [lindex $argv 1]
+set user [lindex $argv 2]
+set pass [lindex $argv 3]
+set rule_ls [split [lindex $argv 4] ";"]
+
+set retval 0
+# apply the xfer rule one by one
+foreach rule $rule_ls {
+    set token_ls [split [join $rule " "] " "]
+
+    if {[llength $token_ls] != 3} {
+        puts "invalid rules \[local remote direction\] needed"
+        set retval 1
+        break
+    }
+
+    set local   [lindex $token_ls 0]
+    set remote  [lindex $token_ls 1]
+    set dir     [lindex $token_ls 2]
+
+    if {[string compare $dir "push"] == 0} {
+        set proc_id [spawn rsync -az $local $user@$host:$remote]
+        if {! [universal_login $host $pass $proc_id]} { 
+            set retval 1 
+            break
+        }
+    } elseif {[string compare $dir "pull"] == 0} {
+        set proc_id [spawn rsync -az --rsh="ssh -p $port" $user@$host:$remote $local]
+        if {! [universal_login $host $pass $proc_id]} { 
+            set retval 1 
+            break
+        }
+    } else {
+        puts "unknown direction in $rule"
+        set reval 1
+        break
+    }
+}
+
+exit $retval
